@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobShadow AI – Mock Interviews</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body { background: #06060A; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: #0D0D14; }
+    ::-webkit-scrollbar-thumb { background: #D4521A; border-radius: 2px; }
+    ::placeholder { color: #333; }
+    select option { background: #111; color: #eee; }
+
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.2} }
+    @keyframes blink { 0%,100%{opacity:1}50%{opacity:0} }
+
+    .fade-up   { animation: fadeUp 0.5s ease forwards; }
+    .fade-up-1 { animation: fadeUp 0.5s 0.10s ease both; }
+    .fade-up-2 { animation: fadeUp 0.5s 0.25s ease both; }
+    .fade-up-3 { animation: fadeUp 0.5s 0.40s ease both; }
+    .fade-up-4 { animation: fadeUp 0.5s 0.55s ease both; }
+    .dot-1 { animation: pulse-dot 1.2s 0.0s infinite; }
+    .dot-2 { animation: pulse-dot 1.2s 0.3s infinite; }
+    .dot-3 { animation: pulse-dot 1.2s 0.6s infinite; }
+
+    .btn-primary {
+      background: #D4521A; color: #fff; border: none;
+      padding: 14px 32px; border-radius: 6px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px; font-weight: 700; letter-spacing: 2px;
+      cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+    }
+    .btn-primary:hover    { background: #E8631F; transform: translateY(-1px); }
+    .btn-primary:disabled { background: #333; color: #666; cursor: not-allowed; transform: none; }
+
+    .select-field {
+      background: #0D0D14; border: 1px solid #222; color: #E8E8E8;
+      padding: 12px 16px; border-radius: 6px; width: 100%;
+      font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+      appearance: none; cursor: pointer; transition: border-color 0.2s; outline: none;
+    }
+    .select-field:focus { border-color: #D4521A; }
+
+    .msg-bubble-ai {
+      background: #0D0D14; border: 1px solid #1A1A28;
+      border-left: 3px solid #D4521A; border-radius: 0 10px 10px 0;
+      padding: 16px 20px; max-width: 88%;
+      line-height: 1.75; font-size: 13px; color: #DDD;
+    }
+    .msg-bubble-user {
+      background: #D4521A22; border: 1px solid #D4521A44;
+      border-right: 3px solid #D4521A; border-radius: 10px 0 0 10px;
+      padding: 14px 20px; max-width: 80%; margin-left: auto;
+      line-height: 1.75; font-size: 13px; color: #EEE; text-align: right;
+    }
+    .apikey-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: #06060Aee; display: flex;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .apikey-box {
+      background: #0D0D14; border: 1px solid #D4521A44;
+      border-radius: 12px; padding: 36px 32px;
+      width: 100%; max-width: 460px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .apikey-input {
+      width: 100%; background: #06060A; border: 1px solid #222;
+      color: #E8E8E8; padding: 12px 16px; border-radius: 6px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+      outline: none; margin: 14px 0;
+    }
+    .apikey-input:focus { border-color: #D4521A; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    // ── MODEL: Gemini 2.5 Flash — Latest & Free ───────────────
+    const GEMINI_MODEL = "gemini-2.5-flash-preview-04-17";
+
+    const COMPANIES = ["Infosys","TCS","Wipro","HCL","Accenture","Cognizant","Tech Mahindra","Capgemini","IBM India","Startup (Early Stage)"];
+    const ROLES     = ["Software Engineer","Business Analyst","HR Executive","Sales Executive","Data Analyst","Customer Support","Product Manager","Operations Manager"];
+    const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada"];
+
+    function buildSystemPrompt(company, role, language) {
+      return `You are a senior HR interviewer at ${company} conducting a real job interview for the role of ${role}.
+
+LANGUAGE: Conduct the interview in ${language}. If Hindi/regional language, mix with professional English terms naturally (like real Indian interviews).
+
+YOUR PERSONALITY:
+- Strict but fair. You probe weak answers.
+- You ask ONE question at a time. Never multiple questions.
+- After each candidate answer, you briefly react (1 sentence), then ask the next question OR give final feedback.
+- You sound human, not robotic.
+
+INTERVIEW FLOW (follow strictly):
+1. Start with a warm but professional greeting. Introduce yourself as from ${company} HR. Ask "Tell me about yourself."
+2. After their answer: Ask about their biggest strength with a specific example.
+3. After their answer: Ask a ${role}-specific technical/situational question.
+4. After their answer: Ask "Why do you want to join ${company} specifically?"
+5. After their answer: Ask about a weakness or a time they failed.
+6. After their answer: Ask one curveball/pressure question relevant to ${role} at ${company}.
+7. After their answer: Wrap up. Tell them interview is over. Give DETAILED FEEDBACK in this exact format:
+
+---FEEDBACK---
+OVERALL SCORE: X/10
+
+STRENGTHS:
+• [specific strength from their answers]
+• [specific strength]
+
+AREAS TO IMPROVE:
+• [specific weak point]
+• [specific weak point]
+
+VERDICT: [Shortlisted / Needs More Preparation / Not Recommended] for ${role} at ${company}
+
+PERSONALIZED TIP: [One specific, actionable tip for this candidate]
+---END FEEDBACK---
+
+RULES:
+- Never break character. You are always the interviewer.
+- Never reveal you are an AI unless directly asked.
+- If their answer is weak, say "Can you elaborate more?" or "Give me a specific example."
+- Keep responses under 120 words (except final feedback).
+- Be real. Indian job interviews are competitive. Don't sugarcoat.`;
+    }
+
+    // ── Gemini 2.5 Flash API call ─────────────────────────────
+    async function callGemini(history, systemPrompt, apiKey) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+
+      const contents = history
+        .filter(m => m.content !== "START")
+        .map(m => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }]
+        }));
+
+      if (contents.length === 0 || contents[0].role !== "user") {
+        contents.unshift({ role:"user", parts:[{ text:"Start the interview." }] });
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: { maxOutputTokens: 1000, temperature: 0.85 }
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `API error ${res.status}`);
+      }
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Something went wrong. Please try again.";
+    }
+
+    function parseFeedback(text) {
+      if (!text.includes("---FEEDBACK---")) return null;
+      const block      = text.split("---FEEDBACK---")[1]?.split("---END FEEDBACK---")[0] || "";
+      const score      = block.match(/OVERALL SCORE:\s*(\d+)/)?.[1];
+      const verdict    = block.match(/VERDICT:\s*(.+)/)?.[1]?.trim();
+      const allBullets = [...block.matchAll(/•\s*(.+)/g)].map(m => m[1].trim());
+      const strengths  = allBullets.slice(0, 2);
+      const improvements = allBullets.slice(2, 4);
+      const tip        = block.match(/PERSONALIZED TIP:\s*(.+)/)?.[1]?.trim();
+      return { score, verdict, strengths, improvements, tip };
+    }
+
+    function scoreColor(s) {
+      const n = parseInt(s);
+      if (n >= 8) return "#22C55E";
+      if (n >= 6) return "#F59E0B";
+      return "#EF4444";
+    }
+
+    // ── API Key Gate ──────────────────────────────────────────
+    function ApiKeyGate({ onSave }) {
+      const [val, setVal] = useState("");
+      const [err, setErr] = useState("");
+      function save() {
+        const k = val.trim();
+        if (k.length < 15) { setErr("Key looks too short — please check and try again."); return; }
+        onSave(k);
+      }
+      return (
+        <div className="apikey-overlay">
+          <div className="apikey-box fade-up">
+            <div style={{ display:"inline-block", background:"#22C55E22", border:"1px solid #22C55E44", color:"#22C55E", borderRadius:"4px", padding:"3px 12px", fontSize:"11px", fontWeight:"700", letterSpacing:"2px", marginBottom:"14px" }}>
+              FREE · NO CREDIT CARD
+            </div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"22px", fontWeight:"800", color:"#E8E8E8", marginBottom:"4px" }}>
+              Enter your Gemini API Key
+            </div>
+            <div style={{ color:"#D4521A", fontSize:"11px", letterSpacing:"1px", marginBottom:"12px", fontWeight:"600" }}>
+              ✦ Using Gemini 2.5 Flash — Latest Model
+            </div>
+            <div style={{ color:"#555", fontSize:"12px", lineHeight:"1.8", marginBottom:"18px" }}>
+              Google Gemini is completely free. Follow these steps:
+            </div>
+
+            {[
+              { n:"1", body: <span>Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color:"#D4521A",textDecoration:"none"}}>aistudio.google.com/app/apikey</a></span> },
+              { n:"2", body: <span>Sign in with Google → click <b style={{color:"#E8E8E8"}}>"Create API key"</b> → Copy it</span> },
+              { n:"3", body: <span>Paste it below and press <b style={{color:"#E8E8E8"}}>Save</b></span> },
+            ].map(s => (
+              <div key={s.n} style={{ display:"flex", gap:"12px", alignItems:"flex-start", marginBottom:"10px" }}>
+                <div style={{ minWidth:"22px", height:"22px", background:"#D4521A", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"11px", fontWeight:"700", color:"#fff", flexShrink:0 }}>{s.n}</div>
+                <div style={{ color:"#888", fontSize:"12px", lineHeight:"1.7" }}>{s.body}</div>
+              </div>
+            ))}
+
+            <input
+              className="apikey-input"
+              type="password"
+              placeholder="Paste Gemini API key here..."
+              value={val}
+              onChange={e => { setVal(e.target.value); setErr(""); }}
+              onKeyDown={e => e.key === "Enter" && save()}
+            />
+            {err && <div style={{ color:"#EF4444", fontSize:"12px", marginBottom:"10px" }}>{err}</div>}
+            <button className="btn-primary" style={{ width:"100%" }} onClick={save}>SAVE & START →</button>
+            <div style={{ marginTop:"12px", color:"#2A2A2A", fontSize:"11px", textAlign:"center" }}>
+              Key stays in your browser session only. Never leaves your device.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ═══ MAIN APP ═════════════════════════════════════════════
+    function JobShadowAI() {
+      const [apiKey, setApiKey]        = useState(() => sessionStorage.getItem("jsai_gemini") || "");
+      const [screen, setScreen]        = useState("landing");
+      const [setup, setSetup]          = useState({ company:"", role:"", language:"English" });
+      const [messages, setMessages]    = useState([]);
+      const [input, setInput]          = useState("");
+      const [loading, setLoading]      = useState(false);
+      const [feedback, setFeedback]    = useState(null);
+      const [questionCount, setQCount] = useState(0);
+      const [apiError, setApiError]    = useState("");
+      const bottomRef = useRef(null);
+      const inputRef  = useRef(null);
+
+      useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
+
+      function saveKey(k) { sessionStorage.setItem("jsai_gemini", k); setApiKey(k); }
+      function clearKey() { sessionStorage.removeItem("jsai_gemini"); setApiKey(""); setApiError(""); }
+
+      async function startInterview() {
+        if (!setup.company || !setup.role) return;
+        setScreen("interview"); setLoading(true); setApiError(""); setMessages([]);
+        const system = buildSystemPrompt(setup.company, setup.role, setup.language);
+        try {
+          const initial = await callGemini([{ role:"user", content:"Start the interview." }], system, apiKey);
+          setMessages([{ role:"user", content:"START" }, { role:"assistant", content:initial }]);
+          setQCount(1);
+        } catch(e) { setApiError(e.message); setScreen("setup"); }
+        setLoading(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+
+      async function sendMessage() {
+        if (!input.trim() || loading) return;
+        const userMsg = input.trim();
+        setInput(""); setApiError("");
+        const newMsgs = [...messages, { role:"user", content:userMsg }];
+        setMessages(newMsgs); setLoading(true);
+        try {
+          const system  = buildSystemPrompt(setup.company, setup.role, setup.language);
+          const reply   = await callGemini(newMsgs, system, apiKey);
+          const updated = [...newMsgs, { role:"assistant", content:reply }];
+          setMessages(updated); setQCount(q => q + 1);
+          const fb = parseFeedback(reply);
+          if (fb) { setFeedback(fb); setTimeout(() => setScreen("feedback"), 1200); }
+        } catch(e) { setApiError(e.message); }
+        setLoading(false);
+      }
+
+      function handleKey(e) { if (e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(); } }
+      function restart() { setScreen("setup"); setMessages([]); setFeedback(null); setQCount(0); setSetup({company:"",role:"",language:"English"}); }
+
+      const gridBg = { position:"fixed", inset:0, pointerEvents:"none", zIndex:0, backgroundImage:"linear-gradient(#1A1A2820 1px,transparent 1px),linear-gradient(90deg,#1A1A2820 1px,transparent 1px)", backgroundSize:"40px 40px" };
+
+      return (
+        <div style={{ minHeight:"100vh", background:"#06060A", fontFamily:"'IBM Plex Mono','Courier New',monospace", color:"#E8E8E8", position:"relative", overflow:"hidden" }}>
+          {!apiKey && <ApiKeyGate onSave={saveKey} />}
+          <div style={gridBg} />
+
+          {/* LANDING */}
+          {screen==="landing" && (
+            <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", textAlign:"center" }}>
+              <div className="fade-up-1" style={{ color:"#D4521A", fontSize:"11px", fontWeight:"700", letterSpacing:"5px", marginBottom:"20px" }}>▸ AI-POWERED MOCK INTERVIEWS</div>
+              <div className="fade-up-2" style={{ fontFamily:"'Syne',sans-serif", fontSize:"clamp(44px,9vw,80px)", fontWeight:"800", lineHeight:"0.95", letterSpacing:"-2px", marginBottom:"24px" }}>
+                JOB<br/><span style={{color:"#D4521A"}}>SHADOW</span><br/>
+                <span style={{fontSize:"0.5em",color:"#555",fontWeight:"700"}}>AI</span>
+              </div>
+              <div className="fade-up-3" style={{ color:"#666", fontSize:"13px", maxWidth:"420px", lineHeight:"1.8", marginBottom:"32px" }}>
+                Practice with a real AI interviewer trained on Infosys, TCS, Wipro & more. Get brutal, honest feedback. Crack your next interview.
+              </div>
+              <div className="fade-up-4" style={{ marginBottom:"14px" }}>
+                <button className="btn-primary" onClick={() => setScreen("setup")}>START INTERVIEW →</button>
+              </div>
+              <div className="fade-up-4" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"8px" }}>
+                <span style={{ background:"#22C55E18", border:"1px solid #22C55E33", color:"#22C55E", fontSize:"11px", padding:"5px 16px", borderRadius:"20px" }}>
+                  ✓ Powered by Gemini 2.5 Flash — Latest & Free
+                </span>
+              </div>
+              <div className="fade-up-4" style={{ marginTop:"28px", display:"flex", gap:"24px", flexWrap:"wrap", justifyContent:"center", color:"#2A2A2A", fontSize:"11px" }}>
+                {["6 Questions","Real Feedback","Any Language","Free Forever"].map(t=><span key={t}>✓ {t}</span>)}
+              </div>
+              {apiKey && (
+                <div style={{ marginTop:"16px", display:"flex", alignItems:"center", gap:"12px" }}>
+                  <span style={{color:"#22C55E44",fontSize:"11px"}}>● Gemini key active</span>
+                  <button onClick={clearKey} style={{ background:"none", border:"none", color:"#333", fontSize:"11px", cursor:"pointer", fontFamily:"IBM Plex Mono,monospace", textDecoration:"underline" }}>change key</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SETUP */}
+          {screen==="setup" && (
+            <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+              <div style={{ width:"100%", maxWidth:"460px" }}>
+                <div className="fade-up-1" style={{ marginBottom:"32px" }}>
+                  <div style={{ color:"#D4521A", fontSize:"10px", letterSpacing:"4px", marginBottom:"10px" }}>SETUP YOUR INTERVIEW</div>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"28px", fontWeight:"800" }}>Who are you<br/>interviewing with?</div>
+                </div>
+
+                {apiError && (
+                  <div style={{ background:"#1A0A0A", border:"1px solid #EF444455", borderRadius:"6px", padding:"14px 16px", color:"#EF4444", fontSize:"12px", marginBottom:"16px", lineHeight:"1.7" }}>
+                    ⚠ {apiError}
+                    <div style={{ marginTop:"10px" }}>
+                      <button onClick={clearKey} style={{ background:"#D4521A22", border:"1px solid #D4521A55", color:"#D4521A", padding:"5px 14px", borderRadius:"4px", cursor:"pointer", fontSize:"11px", fontFamily:"IBM Plex Mono,monospace" }}>Change API Key</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="fade-up-2" style={{ display:"flex", flexDirection:"column", gap:"16px", marginBottom:"28px" }}>
+                  {[
+                    {label:"COMPANY",key:"company",opts:COMPANIES,ph:"Select company..."},
+                    {label:"ROLE",key:"role",opts:ROLES,ph:"Select role..."},
+                    {label:"INTERVIEW LANGUAGE",key:"language",opts:LANGUAGES,ph:null},
+                  ].map(({label,key,opts,ph}) => (
+                    <div key={key}>
+                      <label style={{ color:"#555", fontSize:"10px", letterSpacing:"3px", display:"block", marginBottom:"8px" }}>{label}</label>
+                      <div style={{ position:"relative" }}>
+                        <select className="select-field" value={setup[key]} onChange={e=>setSetup(s=>({...s,[key]:e.target.value}))}>
+                          {ph && <option value="">{ph}</option>}
+                          {opts.map(o=><option key={o}>{o}</option>)}
+                        </select>
+                        <span style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", color:"#444", pointerEvents:"none" }}>▾</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="fade-up-3" style={{ display:"flex", gap:"12px" }}>
+                  <button style={{ background:"none", border:"1px solid #222", color:"#666", padding:"14px 20px", borderRadius:"6px", cursor:"pointer", fontFamily:"IBM Plex Mono,monospace", fontSize:"12px" }} onClick={()=>setScreen("landing")}>← BACK</button>
+                  <button className="btn-primary" style={{flex:1}} disabled={!setup.company||!setup.role} onClick={startInterview}>BEGIN INTERVIEW →</button>
+                </div>
+
+                {setup.company && setup.role && (
+                  <div className="fade-up" style={{ marginTop:"20px", padding:"14px 16px", background:"#D4521A11", border:"1px solid #D4521A33", borderRadius:"6px", fontSize:"12px", color:"#D4521A88" }}>
+                    ▸ You'll be interviewed by a {setup.company} HR for {setup.role} in {setup.language}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* INTERVIEW */}
+          {screen==="interview" && (
+            <div style={{ position:"relative", zIndex:1, height:"100vh", display:"flex", flexDirection:"column" }}>
+              <div style={{ padding:"14px 20px", borderBottom:"1px solid #111", display:"flex", alignItems:"center", justifyContent:"space-between", background:"#06060A" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                  <div style={{ width:"8px", height:"8px", borderRadius:"50%", background:"#22C55E", boxShadow:"0 0 8px #22C55E" }} />
+                  <span style={{ color:"#D4521A", fontWeight:"700", fontSize:"13px" }}>{setup.company}</span>
+                  <span style={{ color:"#333" }}>×</span>
+                  <span style={{ color:"#777", fontSize:"12px" }}>{setup.role}</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+                  <span style={{ color:"#333", fontSize:"11px" }}>Q {Math.min(questionCount,6)}/6</span>
+                  <button style={{ background:"none", border:"1px solid #1A1A1A", color:"#444", padding:"5px 12px", borderRadius:"4px", cursor:"pointer", fontSize:"11px", fontFamily:"IBM Plex Mono,monospace" }} onClick={restart}>END</button>
+                </div>
+              </div>
+              <div style={{ height:"2px", background:"#0D0D14" }}>
+                <div style={{ height:"100%", background:"#D4521A", width:`${Math.min((questionCount/6)*100,100)}%`, transition:"width 0.6s ease" }} />
+              </div>
+
+              <div style={{ flex:1, overflowY:"auto", padding:"24px 20px", display:"flex", flexDirection:"column", gap:"16px" }}>
+                {messages.filter(m=>m.content!=="START").map((msg,i) => (
+                  <div key={i} className="fade-up" style={{ display:"flex", flexDirection:"column" }}>
+                    {msg.role==="assistant" ? (
+                      <div style={{ display:"flex", gap:"12px", alignItems:"flex-start" }}>
+                        <div style={{ minWidth:"32px", height:"32px", background:"#D4521A22", border:"1px solid #D4521A44", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", color:"#D4521A", fontWeight:"700", flexShrink:0 }}>HR</div>
+                        <div className="msg-bubble-ai">{msg.content.replace(/---FEEDBACK---[\s\S]*---END FEEDBACK---/,"").trim()||msg.content}</div>
+                      </div>
+                    ) : (
+                      <div className="msg-bubble-user">{msg.content}</div>
+                    )}
+                  </div>
+                ))}
+
+                {loading && (
+                  <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
+                    <div style={{ minWidth:"32px", height:"32px", background:"#D4521A22", border:"1px solid #D4521A44", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", color:"#D4521A", fontWeight:"700" }}>HR</div>
+                    <div style={{ display:"flex", gap:"6px", padding:"16px 20px", background:"#0D0D14", borderRadius:"0 10px 10px 0", border:"1px solid #1A1A28", borderLeft:"3px solid #D4521A" }}>
+                      <span className="dot-1" style={{width:"6px",height:"6px",borderRadius:"50%",background:"#D4521A",display:"inline-block"}}/>
+                      <span className="dot-2" style={{width:"6px",height:"6px",borderRadius:"50%",background:"#D4521A",display:"inline-block"}}/>
+                      <span className="dot-3" style={{width:"6px",height:"6px",borderRadius:"50%",background:"#D4521A",display:"inline-block"}}/>
+                    </div>
+                  </div>
+                )}
+                {apiError && <div style={{ background:"#1A0A0A", border:"1px solid #EF444455", borderRadius:"6px", padding:"12px 16px", color:"#EF4444", fontSize:"12px" }}>⚠ {apiError}</div>}
+                <div ref={bottomRef} />
+              </div>
+
+              <div style={{ padding:"16px 20px", borderTop:"1px solid #111", background:"#06060A", display:"flex", gap:"10px" }}>
+                <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={handleKey}
+                  placeholder="Type your answer… (Enter to send)" disabled={loading} rows={2}
+                  style={{ flex:1, background:"#0D0D14", border:"1px solid #1A1A28", borderRadius:"8px", color:"#E8E8E8", padding:"12px 16px", fontFamily:"IBM Plex Mono,monospace", fontSize:"13px", resize:"none", outline:"none", lineHeight:"1.6", transition:"border-color 0.2s" }}
+                  onFocus={e=>e.target.style.borderColor="#D4521A"} onBlur={e=>e.target.style.borderColor="#1A1A28"}
+                />
+                <button className="btn-primary" onClick={sendMessage} disabled={!input.trim()||loading} style={{padding:"12px 20px",alignSelf:"flex-end"}}>SEND</button>
+              </div>
+            </div>
+          )}
+
+          {/* FEEDBACK */}
+          {screen==="feedback" && feedback && (
+            <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-start", padding:"40px 24px" }}>
+              <div style={{ width:"100%", maxWidth:"560px" }}>
+                <div className="fade-up-1" style={{ textAlign:"center", marginBottom:"36px" }}>
+                  <div style={{ color:"#555", fontSize:"10px", letterSpacing:"4px", marginBottom:"12px" }}>INTERVIEW COMPLETE</div>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"90px", fontWeight:"800", color:scoreColor(feedback.score), lineHeight:"1", textShadow:`0 0 60px ${scoreColor(feedback.score)}44` }}>{feedback.score}</div>
+                  <div style={{ color:"#555", fontSize:"12px", marginBottom:"14px" }}>out of 10</div>
+                  <div style={{ display:"inline-block", padding:"8px 20px", background:`${scoreColor(feedback.score)}22`, border:`1px solid ${scoreColor(feedback.score)}55`, borderRadius:"4px", color:scoreColor(feedback.score), fontSize:"12px", fontWeight:"700", letterSpacing:"2px" }}>
+                    {feedback.verdict||"INTERVIEW REVIEWED"}
+                  </div>
+                </div>
+
+                <div className="fade-up-2" style={{ display:"flex", gap:"8px", marginBottom:"24px", flexWrap:"wrap" }}>
+                  {[setup.company,setup.role,setup.language].map(t=>(
+                    <span key={t} style={{ padding:"4px 12px", background:"#111", border:"1px solid #1A1A28", borderRadius:"4px", fontSize:"11px", color:"#666" }}>{t}</span>
+                  ))}
+                </div>
+
+                {feedback.strengths?.length > 0 && (
+                  <div className="fade-up-2" style={{ background:"#0A1A0A", border:"1px solid #1A3020", borderLeft:"3px solid #22C55E", borderRadius:"0 10px 10px 0", padding:"20px", marginBottom:"14px" }}>
+                    <div style={{ color:"#22C55E", fontSize:"10px", letterSpacing:"3px", marginBottom:"12px", fontWeight:"700" }}>STRENGTHS</div>
+                    {feedback.strengths.map((s,i)=>(
+                      <div key={i} style={{ color:"#AAA", fontSize:"13px", lineHeight:"1.6", marginBottom:"6px" }}><span style={{color:"#22C55E",marginRight:"8px"}}>✓</span>{s}</div>
+                    ))}
+                  </div>
+                )}
+
+                {feedback.improvements?.length > 0 && (
+                  <div className="fade-up-3" style={{ background:"#1A0A0A", border:"1px solid #301A1A", borderLeft:"3px solid #EF4444", borderRadius:"0 10px 10px 0", padding:"20px", marginBottom:"14px" }}>
+                    <div style={{ color:"#EF4444", fontSize:"10px", letterSpacing:"3px", marginBottom:"12px", fontWeight:"700" }}>NEEDS IMPROVEMENT</div>
+                    {feedback.improvements.map((s,i)=>(
+                      <div key={i} style={{ color:"#AAA", fontSize:"13px", lineHeight:"1.6", marginBottom:"6px" }}><span style={{color:"#EF4444",marginRight:"8px"}}>↑</span>{s}</div>
+                    ))}
+                  </div>
+                )}
+
+                {feedback.tip && (
+                  <div className="fade-up-3" style={{ background:"#0D0D14", border:"1px solid #D4521A33", borderLeft:"3px solid #D4521A", borderRadius:"0 10px 10px 0", padding:"20px", marginBottom:"28px" }}>
+                    <div style={{ color:"#D4521A", fontSize:"10px", letterSpacing:"3px", marginBottom:"8px", fontWeight:"700" }}>PERSONALIZED TIP</div>
+                    <div style={{ color:"#CCC", fontSize:"13px", lineHeight:"1.7" }}>{feedback.tip}</div>
+                  </div>
+                )}
+
+                <div className="fade-up-4" style={{ display:"flex", gap:"12px" }}>
+                  <button className="btn-primary" style={{flex:1}} onClick={restart}>PRACTICE AGAIN →</button>
+                </div>
+                <div className="fade-up-4" style={{ textAlign:"center", marginTop:"24px", color:"#2A2A2A", fontSize:"11px" }}>
+                  JobShadow AI · Built by 18Spar · Gemini 2.5 Flash (Free)
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<JobShadowAI />);
+  </script>
+</body>
+</html>
